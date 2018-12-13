@@ -113,16 +113,6 @@ struct ExtraAffects
 	int chance; // вероятность того, что данный экстраффект будет на шмотке
 };
 
-struct DailyQuest
-{
-	// id
-	int id;
-	// desk
-	std::string desk;
-	// награда
-	int reward;
-};
-
 struct QuestBodrichRewards
 {
 	int level;
@@ -344,6 +334,8 @@ public:
 	using free_names_list_t = std::list<std::string>;
 
 	static const std::size_t NOT_FOUND;
+
+	~PlayersIndex();
 
 	std::size_t append(const player_index_element& element);
 	bool player_exists(const int id) const { return m_id_to_index.find(id) != m_id_to_index.end(); }

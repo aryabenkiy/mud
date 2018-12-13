@@ -922,10 +922,12 @@ void show_spell_off(int aff, CHAR_DATA * ch)
 {
 	if (!IS_NPC(ch) && PLR_FLAGGED(ch, PLR_WRITING))
 		return;
-
-	act(spell_wear_off_msg[aff], FALSE, ch, 0, 0, TO_CHAR | TO_SLEEP);
-	send_to_char("\r\n", ch);
-
+	sprintf(buf, "%s", spell_wear_off_msg[aff]);
+	if (buf[0] != '*')
+	{
+		act(buf, FALSE, ch, 0, 0, TO_CHAR | TO_SLEEP);
+		send_to_char("\r\n", ch);
+	}
 }
 
 void mobile_affect_update(void)
@@ -990,13 +992,15 @@ void mobile_affect_update(void)
 						}
 					}
 
-					i->remove_pulse_affect(affect_i);
+					i->affect_remove(affect_i);
 				}
 			}
 		}
 
 		if (!was_purged)
 		{
+			affect_total(i.get());
+
 			decltype(i->timed) timed_next;
 			for (auto timed = i->timed; timed; timed = timed_next)
 			{
@@ -1034,8 +1038,6 @@ void mobile_affect_update(void)
 				stop_follower(i.get(), SF_CHARMLOST);
 			}
 		}
-
-		i->update_active_affects();
 	});
 }
 
@@ -1102,7 +1104,7 @@ void player_affect_update(void)
 					}
 				}
 
-				i->remove_pulse_affect(affect_i);
+				i->affect_remove(affect_i);
 			}
 		}
 
@@ -1110,7 +1112,7 @@ void player_affect_update(void)
 		{
 			MemQ_slots(i.get());	// сколько каких слотов занято (с коррекцией)
 
-			i->update_active_affects();
+			affect_total(i.get());
 		}
 	});
 }
@@ -1204,15 +1206,17 @@ void battle_affect_update(CHAR_DATA * ch)
 				}
 			}
 
-			ch->remove_pulse_affect(affect_i);
+			ch->affect_remove(affect_i);
 		}
 	}
+
+	affect_total(ch);
 }
 
 // This file update pulse affects only
 void pulse_affect_update(CHAR_DATA * ch)
 {
-	bool pulse_aff = false;
+	bool pulse_aff = FALSE;
 
 	if (ch->get_fighting())
 	{
@@ -1230,7 +1234,7 @@ void pulse_affect_update(CHAR_DATA * ch)
 			continue;
 		}
 
-		pulse_aff = true;
+		pulse_aff = TRUE;
 		if (affect->duration >= 1)
 		{
 			if (IS_NPC(ch))
@@ -1263,13 +1267,13 @@ void pulse_affect_update(CHAR_DATA * ch)
 				}
 			}
 
-			ch->remove_pulse_affect(affect_i);
+			ch->affect_remove(affect_i);
 		}
 	}
 
 	if (pulse_aff)
 	{
-		ch->update_active_affects();
+		affect_total(ch);
 	}
 }
 
@@ -2815,7 +2819,7 @@ int mag_affects(int level, CHAR_DATA * ch, CHAR_DATA * victim, int spellnum, int
 		if (affected_by_spell(victim, SPELL_FIRE_SHIELD))
 			affect_from_char(victim, SPELL_FIRE_SHIELD);
 		af[0].bitvector = to_underlying(EAffectFlag::AFF_AIRSHIELD);
-		af[0].battleflag = TRUE;
+		af[0].battleflag = AF_BATTLEDEC;
 		if (IS_NPC(victim) || victim == ch)
 			af[0].duration = pc_duration(victim, 10 + GET_REMORT(ch), 0, 0, 0, 0) * koef_duration;
 		else
@@ -2830,7 +2834,7 @@ int mag_affects(int level, CHAR_DATA * ch, CHAR_DATA * victim, int spellnum, int
 		if (affected_by_spell(victim, SPELL_AIR_SHIELD))
 			affect_from_char(victim, SPELL_AIR_SHIELD);
 		af[0].bitvector = to_underlying(EAffectFlag::AFF_FIRESHIELD);
-		af[0].battleflag = TRUE;
+		af[0].battleflag = AF_BATTLEDEC;
 		if (IS_NPC(victim) || victim == ch)
 			af[0].duration = pc_duration(victim, 10 + GET_REMORT(ch), 0, 0, 0, 0) * koef_duration;
 		else
@@ -2845,7 +2849,7 @@ int mag_affects(int level, CHAR_DATA * ch, CHAR_DATA * victim, int spellnum, int
 		if (affected_by_spell(victim, SPELL_AIR_SHIELD))
 			affect_from_char(victim, SPELL_AIR_SHIELD);
 		af[0].bitvector = to_underlying(EAffectFlag::AFF_ICESHIELD);
-		af[0].battleflag = TRUE;
+		af[0].battleflag = AF_BATTLEDEC;
 		if (IS_NPC(victim) || victim == ch)
 			af[0].duration = pc_duration(victim, 10 + GET_REMORT(ch), 0, 0, 0, 0) * koef_duration;
 		else
@@ -3491,6 +3495,7 @@ int mag_affects(int level, CHAR_DATA * ch, CHAR_DATA * victim, int spellnum, int
 			af[0].modifier = level;
 		}
 		af[0].duration = pc_duration(victim, 20, SECS_PER_PLAYER_AFFECT * GET_REMORT(ch), 1, 0, 0) * koef_duration;
+		af[0].bitvector = to_underlying(EAffectFlag::AFF_PROTECT_EVIL);
 		accum_duration = TRUE;
 		to_vict = "Вы подавили в себе страх к тьме.";
 		to_room = "$n подавил$g в себе страх к тьме.";
@@ -3546,7 +3551,7 @@ int mag_affects(int level, CHAR_DATA * ch, CHAR_DATA * victim, int spellnum, int
 				sprintf(buf, "%s свалил%s со своего скакуна.", GET_PAD(victim, 0),
 						GET_CH_SUF_2(victim));
 				act(buf, FALSE, victim, 0, 0, TO_ROOM | TO_ARENA_LISTEN);
-				victim->remove_affect(EAffectFlag::AFF_HORSE);
+				AFF_FLAGS(victim).unset(EAffectFlag::AFF_HORSE);
 			}
 
 			send_to_char("Вы слишком устали... Спать... Спа...\r\n", victim);
@@ -4716,32 +4721,22 @@ int mag_summons(int level, CHAR_DATA * ch, OBJ_DATA * obj, int spellnum, int sav
 	GET_GOLD_NoDs(mob) = 0;
 	GET_GOLD_SiDs(mob) = 0;
 //-Polud
+	const auto days_from_full_moon =
+		(weather_info.moon_day < 14) ? (14 - weather_info.moon_day) : (weather_info.moon_day - 14);
+	const auto duration = pc_duration(mob, GET_REAL_WIS(ch) + number(0, days_from_full_moon), 0, 0, 0, 0);
 	AFFECT_DATA<EApplyLocation> af;
 	af.type = SPELL_CHARM;
-
-	if (weather_info.moon_day < 14)
-	{
-		af.duration = pc_duration(mob, GET_REAL_WIS(ch) + number(0, weather_info.moon_day % 14), 0, 0, 0, 0);
-	}
-	else
-	{
-		af.duration = pc_duration(mob, GET_REAL_WIS(ch) + number(0, 14 - weather_info.moon_day % 14), 0, 0, 0, 0);
-	}
-
+	af.duration = duration;
 	af.modifier = 0;
 	af.location = EApplyLocation::APPLY_NONE;
 	af.bitvector = to_underlying(EAffectFlag::AFF_CHARM);
 	af.battleflag = 0;
-	mob->affect_to_char(af);
+	affect_to_char(mob, af);
 	if (keeper)
 	{
 		af.bitvector = to_underlying(EAffectFlag::AFF_HELPER);
-		mob->affect_to_char(af);
+		affect_to_char(mob, af);
 		mob->set_skill(SKILL_RESCUE, 100);
-// shapirus: проставим флаг клона тут в явном виде, чтобы
-// режим отсева клонов при показе группы работал гарантированно
-// (это была идиотская идея)
-//      SET_BIT (MOB_FLAGS (mob, MOB_CLONE), MOB_CLONE);
 	}
 
 	MOB_FLAGS(mob).set(MOB_CORPSE);
@@ -4830,13 +4825,21 @@ int mag_summons(int level, CHAR_DATA * ch, OBJ_DATA * obj, int spellnum, int sav
 //added by Adept
 	if (spellnum == SPELL_SUMMON_FIREKEEPER)
 	{
+		AFFECT_DATA<EApplyLocation> af;
+		af.type = SPELL_CHARM;
+		af.duration = duration;
+		af.modifier = 0;
+		af.location = EApplyLocation::APPLY_NONE;
+		af.battleflag = 0;
 		if (get_effective_cha(ch) >= 30)
 		{
-			mob->set_affect(EAffectFlag::AFF_FIRESHIELD);
+			af.bitvector = to_underlying(EAffectFlag::AFF_FIRESHIELD);
+			affect_to_char(mob, af);
 		}
 		else
 		{
-			mob->set_affect(EAffectFlag::AFF_FIREAURA);
+			af.bitvector = to_underlying(EAffectFlag::AFF_FIREAURA);
+			affect_to_char(mob, af);
 		}
 
 		modifier = VPOSI((int)get_effective_cha(ch) - 20, 0, 30);
@@ -4916,10 +4919,11 @@ int mag_points(int level, CHAR_DATA * ch, CHAR_DATA * victim, int spellnum, int/
 		break;
 	case SPELL_FULL:
 	case SPELL_COMMON_MEAL:
-//		if (!IS_NPC(victim) && !IS_IMMORTAL(victim))
 		{
-			GET_COND(victim, THIRST) = 0;
-			GET_COND(victim, FULL) = 0;
+			if (GET_COND(victim, THIRST) > 0)
+				GET_COND(victim, THIRST) = 0;
+			if (GET_COND(victim, FULL) > 0)
+				GET_COND(victim, FULL) = 0;
 			send_to_char("Вы полностью насытились.\r\n", victim);
 		}
 		break;

@@ -3003,7 +3003,15 @@ int cast_spell(CHAR_DATA * ch, CHAR_DATA * tch, OBJ_DATA * tobj, ROOM_DATA * tro
 		MemQ_remember(ch, spell_subst);
 	if (!IS_NPC(ch))
 	{
-		ch->update_active_affects();
+		/*log("[CAST_SPELL->AFFECT_TOTAL] Start <%s(%d)> <%s(%d)> <%s> <%d>",
+		   GET_NAME(ch),
+		   ch->in_room,
+		   tch  ? GET_NAME(tch)   : "-",
+		   tch  ? IN_ROOM(tch)    : -2,
+		   tobj ? tobj->PNames[0] : "-",
+		   spellnum); */
+		affect_total(ch);
+		//log("[CAST_SPELL->AFFECT_TOTAL] Stop");
 	}
 	else
 	{
@@ -3245,9 +3253,9 @@ void do_cast(CHAR_DATA *ch, char *argument, int/* cmd*/, int /*subcmd*/)
 		}
 		if (!IS_NPC(ch) && !IS_IMMORTAL(ch) && PRF_FLAGGED(ch, PRF_AUTOMEM))
 			MemQ_remember(ch, spell_subst);
-
-		ch->update_active_affects();
-
+		//log("[DO_CAST->AFFECT_TOTAL] Start");
+		affect_total(ch);
+		//log("[DO_CAST->AFFECT_TOTAL] Stop");
 		if (!tch || !skill_message(0, ch, tch, spellnum))
 			send_to_char("Вы не смогли сосредоточиться!\r\n", ch);
 	}
@@ -5377,7 +5385,7 @@ void mag_assign_spells(void)
 		   MAG_DAMAGE | NPC_AFFECT_PC | MAG_AFFECTS | NPC_DAMAGE_PC | NPC_DAMAGE_PC_MINHP, 2, STYPE_DARK);
 //233
 	spello(SPELL_PALADINE_INSPIRATION, "воодушевление", "inspiration",
-		   0, 0, 0, 255, 0, FALSE, MAG_MANUAL, 0, STYPE_NEUTRAL);
+		   0, 0, 0, 255, 0, FALSE, MAG_AFFECTS, 0, STYPE_NEUTRAL);
 
 	/*
 	 * These spells are currently not used, not implemented, and not castable.
