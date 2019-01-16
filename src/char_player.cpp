@@ -237,7 +237,7 @@ int Player::get_hryvn()
 
 void Player::set_hryvn(int value)
 {
-	if (this->get_hryvn() + value > 1200)
+	if (value > 1200)
 		value = 1200;
 	this->hryvn = value;
 }
@@ -250,7 +250,12 @@ void Player::sub_hryvn(int value)
 
 void Player::add_hryvn(int value)
 {
-	if ((this->get_hryvn() + value) > 1200)
+	if (GET_REMORT(this) < 6)
+	{
+		send_to_char(this, "Глянув на непонятный слиток, Вы решили выкинуть его...\r\n");
+		return;
+	}
+	else if ((this->get_hryvn() + value) > 1200)
 	{
 		value = 1200 - this->get_hryvn();
 		send_to_char(this, "Вы получили только %ld %s, так как в вашу копилку больше не лезет...\r\n",
@@ -282,7 +287,12 @@ void Player::dquest(const int id)
 	}
 	int value = quest->second.reward + number(1, 3);
 	const int zone_lvl = zone_table[world[this->in_room]->zone].mob_level;
-	if (zone_lvl < 25
+	if (zone_lvl < 11
+		&& 20 <= (GET_LEVEL(this) + GET_REMORT(this) / 5))
+	{
+		value = 0;
+	}
+	else if (zone_lvl < 25
 		&& zone_lvl <= (GET_LEVEL(this) + GET_REMORT(this) / 5))
 	{
 		value /= 2;
@@ -1140,13 +1150,6 @@ int Player::load_char_ascii(const char *name, bool reboot, const bool find_id /*
 			{
 				set_idnum(lnum);
 			}
-			else if (!strcmp(tag, "ICur"))
-			{
-				//Тут контроль льда потом можно сделать
-				//this->set_ice_currency(lnum);//на праздники
-				if (get_ice_currency()>0) //обнуляем если есть лед
-					this->set_ice_currency(0);
-			}
 			break;
 		case 'L':
 			if (!strcmp(tag, "LstL"))
@@ -1642,6 +1645,10 @@ int Player::load_char_ascii(const char *name, bool reboot, const bool find_id /*
 			{
 				IgnoresLoader ignores_loader(this);
 				ignores_loader.load_from_string(line);
+			}
+			else if (!strcmp(tag, "ICur"))
+			{
+				this->set_ice_currency(num);
 			}
 			break;
 
