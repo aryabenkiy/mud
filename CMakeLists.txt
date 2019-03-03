@@ -321,7 +321,6 @@ set(HEADERS
 set(CONFIGURATION_FILES lib.template/misc/configuration.xml)
 # Build types
 set(CMAKE_CONFIGURATION_TYPES Release Debug Test FastTest)
-
 if (NOT MSVC)
 	# Default build type will be Release.
 	if (NOT DEFINED CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "")
